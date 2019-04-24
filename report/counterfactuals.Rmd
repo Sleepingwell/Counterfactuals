@@ -1,0 +1,294 @@
+---
+title: "Counterfactuals in the Program Analytics Tool"
+output:
+  pdf_document: default
+  html_document: default
+header-includes:
+  - \usepackage{txfonts}
+bibliography: counterfactuals.bib
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newcommand{\independent}{\perp \!\!\! \perp}
+
+The Analysis Program Analytics Tool (PAT) is designed to help evaluate the performance
+of a government intervention by comparing comparing Key Performance Indicators
+(KPIs) of program participants relative to some other (counterfactual) group.
+In the original version of of PAT, the comparison group was the entire
+population of Business Longitudinal Analysis Data Environment (BLADE). The
+population in BLADE and the participants of any particular program are not
+comparable and hence the resulting comparisons are not meaningful.
+
+The challenge for this work is how to select a counterfactual control group or
+provide choose appropriate methods of weighting the outcomes for participants
+and non-participants to aid in the comparison.
+
+The role of Data61 in the PAT project for 2019~20 is to explore options for
+doing this, make recommendations on how it should be done and develop tools for
+doing this against BLADE in the Datalab.
+
+Depending on how the work progresses, it might be desirable to expand the scope
+of pat to include methods for directly estimating treatment effects (as
+opposed to simply providing summary statistics for the participants and control
+groups).
+
+
+
+## Methods
+
+Methods exist to reduce bias:
+
+- Propensity Score Matching (PSM) [@rosenbaum83],
+- Propensity Score Matching using Random Forests (PSMRF) [e.g. @zhao16],
+- Mahalanobis Metric Matching,
+- Nearest Neighbour Matching.
+
+
+### Propensity Score Matching
+
+Originally introduced by Rosenbaum and Rubin [-@rosenbaum83], PSM can be used to
+construct control groups for counterfactual analyses. Once propensity scores
+have been calculated, they can be used in various ways to draw a control group
+from a population [see @benedetto18]. When the propensity score is used to
+stratify a population, the strata tend to be more balanced across the covariates
+used to calculate the propensity scores than what would be achieved using a
+random assignment [@joffe99].
+
+PS can be estimated using logistic regression or discriminant analysis
+(originally proposed using logistic regression) but extensions, particularly
+based on Random Forests, have been proposed and deal with some of the
+weaknesses of the original parametric formulation.
+
+
+#### Weaknesses
+
+- Unlike randomised trials, propensity scores cannot balance for unobserved
+  covariates [@joffe99]. Whether this matters or not comes down to "Strong
+  Ignorability".
+
+- @zhao16 notes several problems with PSs, though many of these appear to be
+  specific to the use of (parametric) logistic regression models:
+
+    - Model misspecification,
+    - Categorical variables with more than two levels,
+    - Handling missing data,
+    - Non-linear relationships.
+    - notes that *adjustment of covariates through regression, or
+      covariance adjustment, may be inadequate to eliminate the bias in
+      observational studies*. Find out what this is about (they provide a
+      reference).
+    - mention *Mahalanobis metric matching including the propensity score*.
+      Learn more about this.
+
+
+#### Questions and Follow Ups
+
+- Question) When does it matter whether the sample is balanced? Does this matter
+  in the PAT?
+
+    Answer) Balancing helps control for 'nuisance' effects and reduce variance.
+    In experimental design it is also used to ensure things like all treatment
+    effects are estimated with equal accuracy, or effects of particular interest
+    are estimated with high accuracy.
+    
+    Note also that there are different notions of balance:
+    
+    - In the case of the experimental design and analysis balance refers to
+    having the same number of units exposed to each treatment effect for each
+    set of controls.
+      
+    - In the nomenclature of PS, balance is about having the same distribution
+    of covariates for all units having the same balancing score:
+    $X \independent Z | b(X)$, where $X$ are the covariates, $Z$ is the treatment
+    indicator and $b(X)$ is the balancing score. It is not required (and indeed
+    not possible to arrange in an observational study) balance in the other
+    sense.
+    
+- Question) Are Randomised Control Trials (RCTs) synonymous with Designed
+  Experiments? I think that they are simply part of different nomenclatures from
+  different fields.
+
+- Question) Learn more about strong ignorability.
+
+    Answer) Strong ignorability says that exposure events occur independently of
+    *the pair* (the observed and the counterfactual) of potential outcomes.
+    There is also Weak ignorability, which says that exposure events occur
+    independently of *each* potential outcome [@greenland09].
+
+ - @joffe99 note (on page 1999) that *The propensity score complements
+   model-based procedures and is not a substitute for them*. They then cite a
+   couple of articles where *Matching or stratifying on propensity scores is
+   often used in conjunction with further model-based ajustments*. Have a read
+   of these articles.
+
+
+
+### Propensity Score Matching using Random Forests
+
+Random forests have become a popular was of calculating propensity scores and
+for doing 'causal' inference more generally.
+
+
+#### @zhao16
+
+Presents a method of producing propensity scores based on random forests and
+demonstrate how this can avoid some of the problems associated with the
+original implementation. In particular:
+
+- Random forests are inherently metric free and hence avoid problems with
+  model mis-specification.
+
+- If one uses Mahalanobis distance for constructing the control groups then
+  one is restricted to using only continuous variables.
+
+- Random forests can handle missing data effectively and hence avoid the need
+  for imputation of missing values or rejection of incomplete records.
+
+Note that random forests have many other desirable characteristics, including:
+
+- Automatic variable selection.
+
+- They can handle non-linear relationships without the need for monotonic
+  variable transformations.
+
+Random forests are known not to work well in high dimensions, but that this
+should not be a problem because *the main motivation of propensity score is to
+serve as a one-dimensional balancing score, overcoming the high dimensionality
+of covariates.* If it did prove to be a problem, modifications to random
+forests have been proposed to deal with this (e.g.  @beest17 and @do10) which
+may (or may not) be useful in this context.
+
+I imagine that the approach still suffers the same problem of not balancing
+over unobserved variables.
+
+Various other benefits of random forests have been noted elsewhere (i.e.
+outside of @zhao16), including:
+
+- Robust to outliers.
+
+- Perhaps most important for this particular project, random forests are
+  one of the best performing black-box predictors to be discovered and are
+  extremely easy to use with only a few, reasonably easy to understand, tuning
+  parameters.
+
+- Proximity matrix can serve a similar purpose to stratification based on a PS.
+
+
+- They use matching methods based on both PS and or proximity, and find that
+  methods based either proximity alone or proximity and PS work best. The
+  combined method uses nearest proximity within calipers defined by the PS.In
+  section 4.1 they cite a method (their references 23 (and 8?)) that find that
+  using propensity score as well as Mahalanobix metric matchin with calipers
+  based on a PS.
+
+
+***Thoughts, Questions and Follow Ups***
+
+- Understand the possibilities mentioned in the second paragraph of Section 3.3.
+
+- Read @do10 and determine if it may be useful in this context.
+
+- Refresh myself on how to auto-tune the tuning parameters and ensure that this
+  makes sense in this particular application.
+
+- Some of the stuff here seems a bit weird (like using all units in all
+  trees to *use the data more efficiently* and not using out of bag estimates.
+  They don't seem to have tested the impact of this and do not really provide
+  reasonable justification (for the latter they note *Because we use all of the
+  data to construct each tree in the random forest, there is a propensity score
+  for each subject and a distance measure between any pair of subjects in the
+  data based on each tree.*, but I'm not sure that this matters or would justify
+  the potential drawbacks of not 'out of bagging'.
+
+- In section 3.3 they note some alternative ways of calculating the distance
+  between points. It is not clear to me why all these make sense. Try harder
+  to understand these.
+
+
+
+#### @wager18
+
+Note that I have not finished digesting this work and there are several
+extension and precursors.
+
+Develop methods using random forests to estimate treatment effects without
+having to directly estimate the propensity. The idea is the units within a leaf
+are close enough that they can can be used to estimate average treatment
+effects.  The develop asymptotic properties of the estimators for 'fair' trees.
+A idea of a fair tree is one where the $Ys$ used for generating the splits are
+not used in estimating these effects. They give two examples of this:
+
+1. for each tree, draw a subsample of size $s$ without replacement, split it in
+   two and use one to fit the tree and one to estimate the effects. It is
+   The subsampling is important for the asymptotic results.
+
+2. build the tree using the treated indicator.
+
+Section 2.2 notes that trees and forests are a modification of k-nn methods
+where the neighbourhood is defined by the leaves of the tree and can improve
+performance by `stretching in interesting directions'.
+
+
+
+
+#### @athey16c
+
+Use proximities to develop weights for 'neighbours', then use the weights to
+perform local estimation. They give several examples of this and prove asymptotic
+results for inference.
+
+
+
+***Thoughts, Questions and Follow Ups***
+
+- Read: @athey16a, @athey16b
+
+
+
+## General Questions and Follow Ups
+
+- If we use the logistic regression approach, is it important that the *total*
+  sample is randomly drawn from the population? In the section titled *Inverse
+  probability weighted (IPW) approach* of
+  [this article](https://academic.oup.com/aje/article/173/7/761/103691), they
+  state that inverse weighting using the PS creates a *pseudopopulation*. If
+  this interpretation is required, then we probably need to be careful about
+  the using the populations present in BLADE as they are not a random sample
+  and are not censuses. The implication of this is that the resulting modelled
+  propensity scores will not properly conditioned and hence the resulting
+  models can only be interpreted reasonably in terms of odds ratios. Unless the
+  populaiton in BLADE is either representative of the Aus population or is a
+  random sample thereof, then does this imply that we have to be be careful
+  with PS more generally (i.e. in the case of using it for weighting and for
+  use in matching?
+
+- Businesses selected from BLADE should not be participants in any program (run
+  by the Department of Industry an (DOI) or otherwise. How can this be done in
+  BLADE?
+
+- @rubin73 was one of the first studies into the bias reduction achieved by
+  matching methods bias introduced by comparing populations in observational
+  studies.
+
+- [This study](https://gking.harvard.edu/files/psparadox.pdf) compares the
+  effectiveness of matching methods for causal inference. Have a look at it.
+
+- Read: @austin14, @benedetto18, @rosenbaum89
+
+
+
+## Software
+
+### R
+
+- [MatchIt](https://cran.r-project.org/web/packages/MatchIt/index.html).
+
+- [non-random](https://cran.r-project.org/web/packages/nonrandom/index.html).
+
+- [twang](https://CRAN.R-project.org/package=twang)
+
+- [grf](https://CRAN.R-project.org/package=grf)

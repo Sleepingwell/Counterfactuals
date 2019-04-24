@@ -1,0 +1,109 @@
+main
+========================================================
+author: Simon Knapp
+date: 
+autosize: true
+
+$$
+\newcommand{\al}{\mathcal{L}}
+\newcommand{\ehl}{\hat{e}(l)}
+\newcommand{\th}{\hat{\tau}}
+\newcommand{\thl}{\hat{\tau}(l)}
+\newcommand{\be}{\hat{\mathbb{E}}}
+$$
+
+Notation
+========================================================
+
+- $\al$: Set of leaves in a tree.
+- $L$: Set of units in a tree..
+- $L_1$: Set of treated units in a tree.
+- $L_0$: Set of untreated units in a tree.
+- $l$: Set of units in a leaf.
+- $l_1$: Set of treated units in a leaf.
+- $l_0$: Set of untreated units in a leaf.
+- $n_l$: Number of units in leaf $l$.
+- $n_{l1}$: Number of treated units in leaf $l$.
+- $n_{l0}$: Number of untreated units in leaf $l$.
+- $n$: Number of units in the sample.
+- $n_1$: Number of treated units in the sample.
+- $n_0$: Number of untreated units in the sample.
+- $W_i$: Indicator of whether unit $i$ is treated.
+
+PS in Causal Forests
+========================================================
+
+Within a leaf, the estimate of $e(x)$ is just the proportion of treated observations
+
+$$
+\ehl = \frac{n_{l1}}{n_l}
+$$
+
+and the estimate of CATE is
+
+$$
+\begin{equation} \begin{split}
+\thl &= \frac{\sum_{i \in l_{l1}}{Y_i^{(1)}}}{n_{l1}}
+  - \frac{\sum_{i \in l_{l0}}Y_i^{(0)}}{n_{l0}} \\
+     &= \frac{\sum_{i \in l_{l1}}{Y_i^{(1)}}}{n_l \ehl}
+  - \frac{\sum_{i \in l_{l0}}Y_i^{(0)}}{n_l(1-\ehl)} \\
+     &= \frac{1}{n_l}\left[\frac{\sum_{i \in l}{W_i Y_i}}{\ehl}
+  - \frac{\sum_{i \in l}(1-W_i) Y_i}{(1-\ehl)}\right] \\
+     &= \hat{\mathbb{E}}\left[Y_i\left(\frac{W_i}{\ehl} -
+       \frac{1-W_i}{1-\ehl}\right)\bigg\rvert i\in l\right]
+  \end{split} \end{equation}
+$$
+
+i.e. we are just doing IPSW within each leaf.
+
+Converting CATE to ATE or ATT
+========================================================
+
+To get ATE, we average over leaves of the tree.
+
+$$
+\begin{equation} \begin{split}
+\th  &= \be\left[ \thl \right] \\
+     &= \sum_{l \in L}\thl Pr(i\in l) \\
+     &= \sum_{l \in L}\frac{n_l}{n}\thl
+  \end{split} \end{equation}
+$$
+
+To get ATT, we average over leaves of the tree based on the number
+of treated in each leaf.
+
+$$
+\begin{equation} \begin{split}
+\th|i\in L_1  &= \be\left[ \thl|i\in L_1 \right] \\
+     &= \sum_{l \in L}\thl Pr(i\in l|i\in L_1) \\
+     &= \sum_{l \in L}\frac{n_{l1}}{n_1}\thl
+  \end{split} \end{equation}
+$$
+
+Question) For ATT do we estimate $\thl$ the same way?
+
+Remaining Questions
+========================================================
+
+- What do we do about leaves that contain only participants or only others?
+
+  In this case we don't have a counterfactual in the leaf which violates the
+  overlap assumption. Some options
+    - Drop those leaves and ajust n.
+    - Agreggate the leaves up one level (so we do get a mix).
+
+- PS or proximity?
+
+  Proximity match takes account of similarities in the businesses as well as the
+  propensity scores. This may give better balance which may do better (according
+  to Athey et al.). It may also lead to matchies that SMEs are more comfortable
+  with.
+  
+- How do we produce the numbers in the tables?
+
+  At the start of the project, we just went with matching. I'm not sure how
+  concious that decision was or if it was just based on what was done last time
+  
+  We know that the would be users of the PAT want separate tables for treated
+  and untreated units (not just the differences). We could weight these values
+  based on the weights that would be derived from a causal forest.

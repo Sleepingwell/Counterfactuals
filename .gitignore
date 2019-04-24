@@ -1,0 +1,10 @@
+.Rproj.user
+counterfactuals.html
+counterfactuals.pdf
+*.swp
+*.so
+
+papers/savage/
+external/
+__pycache__/
+.ipynb_checkpoints/
